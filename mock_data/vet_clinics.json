@@ -1,0 +1,74 @@
+[
+  {
+    "clinic_id": "METRO_24_7",
+    "name": "Metro 24/7 Veterinary Emergency Hospital",
+    "clinic_type": "emergency_24_7",
+    "address": "1 Emergency Plaza, Metro City, CA 90001",
+    "phone": "555-9911",
+    "species_accepted": ["canine", "feline", "avian", "reptile", "exotic"],
+    "available_slots": 99,
+    "next_available_slot": "IMMEDIATE WALK-IN",
+    "distance_miles": 4.2,
+    "notes": "24/7 emergency and critical care. Walk-in accepted at all times."
+  },
+  {
+    "clinic_id": "CL101",
+    "name": "Paws & Claws Community Clinic",
+    "clinic_type": "community",
+    "address": "220 Oak Street, Metro City, CA 90210",
+    "phone": "555-0201",
+    "species_accepted": ["canine", "feline"],
+    "available_slots": 4,
+    "next_available_slot": "2025-07-16T09:00:00",
+    "distance_miles": 1.1,
+    "notes": "Dogs and cats only. Morning appointments preferred."
+  },
+  {
+    "clinic_id": "CL102",
+    "name": "All Species Veterinary Centre",
+    "clinic_type": "community",
+    "address": "87 Birch Avenue, Metro City, CA 90210",
+    "phone": "555-0202",
+    "species_accepted": ["canine", "feline", "avian", "reptile", "exotic"],
+    "available_slots": 2,
+    "next_available_slot": "2025-07-16T11:30:00",
+    "distance_miles": 2.3,
+    "notes": "Exotic and avian specialist on staff Tuesday/Thursday."
+  },
+  {
+    "clinic_id": "CL103",
+    "name": "MobileVet Express Unit #3",
+    "clinic_type": "mobile",
+    "address": "Serving ZIP 90210-90215 (call for exact location)",
+    "phone": "555-0203",
+    "species_accepted": ["canine", "feline"],
+    "available_slots": 1,
+    "next_available_slot": "2025-07-16T14:00:00",
+    "distance_miles": 0.6,
+    "notes": "Mobile unit. Confirm location by phone before travel."
+  },
+  {
+    "clinic_id": "CL104",
+    "name": "Avian & Exotic Pet Clinic",
+    "clinic_type": "community",
+    "address": "305 Maple Road, Metro City, CA 90212",
+    "phone": "555-0204",
+    "species_accepted": ["avian", "reptile", "exotic"],
+    "available_slots": 3,
+    "next_available_slot": "2025-07-16T10:00:00",
+    "distance_miles": 3.0,
+    "notes": "Birds, reptiles, and exotic mammals only."
+  },
+  {
+    "clinic_id": "CL105",
+    "name": "Southside Community Animal Hospital",
+    "clinic_type": "community",
+    "address": "512 Elm Boulevard, Metro City, CA 90211",
+    "phone": "555-0205",
+    "species_accepted": ["canine", "feline"],
+    "available_slots": 0,
+    "next_available_slot": null,
+    "distance_miles": 1.9,
+    "notes": "Fully booked today. Next availability tomorrow."
+  }
+]

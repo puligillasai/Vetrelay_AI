@@ -1,0 +1,47 @@
+[
+  {
+    "clinic_id": "CL001",
+    "name": "Paws Community Clinic — North",
+    "clinic_type": "community",
+    "distance_miles": 1.2,
+    "available_slots": 3,
+    "phone": "555-0101",
+    "zip_code": "90210"
+  },
+  {
+    "clinic_id": "CL002",
+    "name": "MobileVet Unit #4",
+    "clinic_type": "mobile",
+    "distance_miles": 0.8,
+    "available_slots": 1,
+    "phone": "555-0102",
+    "zip_code": "90210"
+  },
+  {
+    "clinic_id": "CL003",
+    "name": "Valley 24/7 Animal Emergency",
+    "clinic_type": "emergency_24_7",
+    "distance_miles": 3.5,
+    "available_slots": 8,
+    "phone": "555-0103",
+    "zip_code": "90210"
+  },
+  {
+    "clinic_id": "CL004",
+    "name": "Paws Community Clinic — South",
+    "clinic_type": "community",
+    "distance_miles": 2.1,
+    "available_slots": 0,
+    "phone": "555-0104",
+    "zip_code": "90211"
+  },
+  {
+    "clinic_id": "CL005",
+    "name": "MobileVet Unit #7",
+    "clinic_type": "mobile",
+    "distance_miles": 1.4,
+    "available_slots": 2,
+    "phone": "555-0105",
+    "zip_code": "90211"
+  }
+]
