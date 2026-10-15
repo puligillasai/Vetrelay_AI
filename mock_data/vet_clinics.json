@@ -19,7 +19,7 @@
     "phone": "555-0201",
     "species_accepted": ["canine", "feline"],
     "available_slots": 4,
-    "next_available_slot": "2025-07-16T09:00:00",
+    "next_available_slot": "2026-10-17T09:00:00",
     "distance_miles": 1.1,
     "notes": "Dogs and cats only. Morning appointments preferred."
   },
@@ -31,7 +31,7 @@
     "phone": "555-0202",
     "species_accepted": ["canine", "feline", "avian", "reptile", "exotic"],
     "available_slots": 2,
-    "next_available_slot": "2025-07-16T11:30:00",
+    "next_available_slot": "2026-10-17T11:30:00",
     "distance_miles": 2.3,
     "notes": "Exotic and avian specialist on staff Tuesday/Thursday."
   },
@@ -43,7 +43,7 @@
     "phone": "555-0203",
     "species_accepted": ["canine", "feline"],
     "available_slots": 1,
-    "next_available_slot": "2025-07-16T14:00:00",
+    "next_available_slot": "2026-10-17T14:00:00",
     "distance_miles": 0.6,
     "notes": "Mobile unit. Confirm location by phone before travel."
   },
@@ -55,7 +55,7 @@
     "phone": "555-0204",
     "species_accepted": ["avian", "reptile", "exotic"],
     "available_slots": 3,
-    "next_available_slot": "2025-07-16T10:00:00",
+    "next_available_slot": "2026-10-17T10:00:00",
     "distance_miles": 3.0,
     "notes": "Birds, reptiles, and exotic mammals only."
   },

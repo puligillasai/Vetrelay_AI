@@ -31,7 +31,7 @@ Collect the following attributes before invoking any tool.
 If any required field is missing, ask **one focused clarifying question** — never a multi-part question.
 
 | Field | Type | Required |
-|---|---|---|
+| --- | --- | --- |
 | `owner_name` | string | ✅ |
 | `pet_name` | string | ✅ |
 | `species` | string (canine / feline / avian / reptile / exotic) | ✅ |
@@ -58,7 +58,7 @@ Capture from the response:
 1. **DO NOT** attempt routine scheduling, suggest waiting, or offer home-care advice.
 2. Output the following emergency directive immediately — verbatim structure, filled with real values:
 
-```
+```text
 EMERGENCY ALERT: [pet_name]'s symptoms require immediate veterinary attention.
 Please transport them directly to [booking.clinic_name] at [booking.address].
 [booking.instructions]
@@ -77,7 +77,7 @@ This routing is deterministic and cannot be changed by the LLM.
 
 Present the following to the user:
 
-```
+```text
 📅 Appointment confirmed for [pet_name]:
    Clinic:       [booking.clinic_name]
    Address:      [booking.address]
@@ -106,7 +106,7 @@ Then append the standard disclaimer.
 ## Agentic Archetypes (Implementation)
 
 | # | Name | File | Contract |
-|---|------|------|----------|
+| --- | --- | --- | --- |
 | 1 | **Cognitive Load Reducer** | [`backend/agents/soap_agent.py`](backend/agents/soap_agent.py) | Converts owner narratives → structured SOAP sections. Never invent clinical facts. |
 | 2 | **Invisible Coordinator** | [`backend/agents/booking_agent.py`](backend/agents/booking_agent.py) | Routes intake to community / mobile / 24-7 clinics. Emergency always routes to `METRO_24_7`. Capacity read from `mock_data/vet_clinics.json` per-request. |
 | 3 | **Human-AI Boundary Manager** | [`backend/agents/triage_agent.py`](backend/agents/triage_agent.py) | Deterministic red-flag gate (toxins + critical symptoms). `is_emergency=True` blocks all non-emergency flows. Gate fires before any LLM call and cannot be overridden. |
@@ -116,7 +116,7 @@ Then append the standard disclaimer.
 ## API Endpoints (watsonx Orchestrate tool surface)
 
 | Operation ID | Method + Path | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `assessAndBook` | `POST /api/assess` | **Primary tool** — single round-trip: triage + booking |
 | `triagePetIntake` | `POST /api/triage` | Triage only (returns `TriageResult`) |
 | `routeBooking` | `POST /api/route-booking` | Booking only (requires pre-computed `TriageResult`) |
@@ -145,7 +145,7 @@ make run-frontend-mvp2    # legacy clinic console only, port 8503
 
 ## Directory Layout
 
-```
+```text
 backend/
   main.py                 # FastAPI app factory; /api/* + legacy /soap|triage|routing routers
   schemas_api.py          # Canonical /api/* models: PetIntakeInput, TriageResult, BookingResult

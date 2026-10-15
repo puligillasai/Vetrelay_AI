@@ -1,0 +1,831 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "VetRelay AI",
+    "description": "Veterinary clinical operations AI \u2014 SOAP summarisation, emergency triage, and clinic routing. Designed for consumption by IBM watsonx Orchestrate via OpenAPI 3.0 and MCP.",
+    "version": "0.2.0"
+  },
+  "paths": {
+    "/api/triage": {
+      "post": {
+        "tags": [
+          "VetRelay API"
+        ],
+        "summary": "Evaluate pet intake and return triage result + SOAP brief",
+        "description": "Human-AI Boundary Manager + Cognitive Load Reducer.\n\nApplies a deterministic red-flag gate (toxins, critical symptoms) before\ngenerating a structured SOAP brief.  `is_emergency=True` must never be\nsuppressed by the calling client.\n\n**Deterministic escalation triggers (always CRITICAL_EMERGENCY, score=1):**\n- `suspected_toxicity=true`\n- Symptom tokens matching known toxins (xylitol, chocolate, rat poison, antifreeze, \u2026)\n- Symptom tokens matching critical presentations\n  (seizure, pale gums, bloat, dyspnea, collapse, \u2026)",
+        "operationId": "triagePetIntake",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PetIntakeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/route-booking": {
+      "post": {
+        "tags": [
+          "VetRelay API"
+        ],
+        "summary": "Route pet intake to the most appropriate available clinic",
+        "description": "Invisible Coordinator.\n\n- `is_emergency=True` \u2192 always assigns Metro 24/7 Veterinary Emergency Hospital,\n  slot = `IMMEDIATE WALK-IN`.\n- Otherwise, selects the nearest species-compatible clinic with available capacity\n  from `mock_data/vet_clinics.json`.\n- Falls back to Metro 24/7 if no species-compatible clinic has capacity.\n\nBody shape: `{\"intake\": <PetIntakeInput>, \"triage\": <TriageResult>}`",
+        "operationId": "routeBooking",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_RouteBookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/assess": {
+      "post": {
+        "tags": [
+          "VetRelay API"
+        ],
+        "summary": "Full assessment: triage + booking in a single round-trip",
+        "description": "Runs triage then booking sequentially and returns both results.\n\nUseful for watsonx Orchestrate flows that need a single tool call.",
+        "operationId": "assessAndBook",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PetIntakeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_AssessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/soap/summarise": {
+      "post": {
+        "tags": [
+          "SOAP Summarisation (legacy)"
+        ],
+        "summary": "Convert owner narrative to SOAP summary",
+        "description": "Accept a free-text owner statement and return a structured SOAP note.\n\nNo PII is persisted; the payload is processed in-memory only.",
+        "operationId": "summarise_soap_summarise_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SOAPRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SOAPResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/triage/evaluate": {
+      "post": {
+        "tags": [
+          "Triage (legacy)"
+        ],
+        "summary": "Evaluate symptom severity and escalate if critical",
+        "description": "Assess toxicity/critical symptoms; force emergency flag when threshold exceeded.\n\nThe escalation_required field must ALWAYS be acted on by the UI \u2014 never suppressed.",
+        "operationId": "evaluate_triage_evaluate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/routing/find-clinic": {
+      "post": {
+        "tags": [
+          "Routing (legacy)"
+        ],
+        "summary": "Route pet intake to available clinic",
+        "description": "Return the best-matched clinic (community, mobile, or 24/7 hospital).\n\nCapacity data is sourced exclusively from mock_data/clinic_capacity.json \u2014 never from a live DB.",
+        "operationId": "find_clinic_routing_find_clinic_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "tags": [
+          "Meta"
+        ],
+        "summary": "Health Check",
+        "operationId": "health_check_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Check Healthz Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BookingResult": {
+        "properties": {
+          "clinic_name": {
+            "type": "string",
+            "title": "Clinic Name"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address"
+          },
+          "scheduled_slot": {
+            "type": "string",
+            "title": "Scheduled Slot",
+            "description": "ISO-8601 datetime string or 'IMMEDIATE WALK-IN' for emergencies."
+          },
+          "instructions": {
+            "type": "string",
+            "title": "Instructions",
+            "description": "Owner-facing instructions, including what to bring and what to expect."
+          }
+        },
+        "type": "object",
+        "required": [
+          "clinic_name",
+          "address",
+          "scheduled_slot",
+          "instructions"
+        ],
+        "title": "BookingResult",
+        "description": "Clinic assignment produced by the Invisible Coordinator."
+      },
+      "ClinicMatch": {
+        "properties": {
+          "clinic_id": {
+            "type": "string",
+            "title": "Clinic Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "clinic_type": {
+            "$ref": "#/components/schemas/ClinicType"
+          },
+          "distance_miles": {
+            "type": "number",
+            "title": "Distance Miles"
+          },
+          "available_slots": {
+            "type": "integer",
+            "title": "Available Slots"
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone"
+          }
+        },
+        "type": "object",
+        "required": [
+          "clinic_id",
+          "name",
+          "clinic_type",
+          "distance_miles",
+          "available_slots",
+          "phone"
+        ],
+        "title": "ClinicMatch"
+      },
+      "ClinicType": {
+        "type": "string",
+        "enum": [
+          "community",
+          "mobile",
+          "emergency_24_7"
+        ],
+        "title": "ClinicType"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "PetIntakeInput": {
+        "properties": {
+          "owner_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Owner Name",
+            "description": "Owner's name \u2014 used only for appointment labelling, never stored.",
+            "examples": [
+              "Jane Smith"
+            ]
+          },
+          "pet_name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Pet Name",
+            "examples": [
+              "Buddy"
+            ]
+          },
+          "species": {
+            "type": "string",
+            "title": "Species",
+            "description": "e.g. canine, feline, avian, reptile",
+            "examples": [
+              "canine"
+            ]
+          },
+          "age_years": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Years",
+            "description": "Approximate age in years"
+          },
+          "reported_symptoms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Reported Symptoms",
+            "description": "Free-text symptom tokens supplied by the owner.",
+            "examples": [
+              [
+                "vomiting",
+                "trembling",
+                "pale gums"
+              ]
+            ]
+          },
+          "duration_hours": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Hours",
+            "description": "How long symptoms have been present"
+          },
+          "suspected_toxicity": {
+            "type": "boolean",
+            "title": "Suspected Toxicity",
+            "description": "Owner believes the pet ingested a toxic substance.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "owner_name",
+          "pet_name",
+          "species",
+          "reported_symptoms"
+        ],
+        "title": "PetIntakeInput",
+        "description": "Intake payload supplied by the pet owner or front-desk staff."
+      },
+      "RoutingRequest": {
+        "properties": {
+          "zip_code": {
+            "type": "string",
+            "pattern": "^\\d{5}$",
+            "title": "Zip Code"
+          },
+          "preferred_clinic_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClinicType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "urgent": {
+            "type": "boolean",
+            "title": "Urgent",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "zip_code"
+        ],
+        "title": "RoutingRequest"
+      },
+      "RoutingResponse": {
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/ClinicMatch"
+            },
+            "type": "array",
+            "title": "Matches"
+          },
+          "routed_to": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClinicMatch"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fallback_used": {
+            "type": "boolean",
+            "title": "Fallback Used",
+            "description": "True when the preferred clinic type had no capacity and routing fell back to next best.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "matches"
+        ],
+        "title": "RoutingResponse"
+      },
+      "SOAPRequest": {
+        "properties": {
+          "owner_statement": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Owner Statement",
+            "description": "Free-text narrative from the pet owner \u2014 no PII required.",
+            "examples": [
+              "My dog has been vomiting and not eating for the past two days."
+            ]
+          },
+          "species": {
+            "type": "string",
+            "title": "Species",
+            "description": "e.g. canine, feline, avian"
+          },
+          "age_years": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Years",
+            "description": "Approximate age in years"
+          }
+        },
+        "type": "object",
+        "required": [
+          "owner_statement",
+          "species"
+        ],
+        "title": "SOAPRequest"
+      },
+      "SOAPResponse": {
+        "properties": {
+          "soap": {
+            "$ref": "#/components/schemas/SOAPSections"
+          },
+          "confidence_score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence Score"
+          },
+          "raw_owner_statement": {
+            "type": "string",
+            "title": "Raw Owner Statement"
+          }
+        },
+        "type": "object",
+        "required": [
+          "soap",
+          "confidence_score",
+          "raw_owner_statement"
+        ],
+        "title": "SOAPResponse"
+      },
+      "SOAPSections": {
+        "properties": {
+          "subjective": {
+            "type": "string",
+            "title": "Subjective"
+          },
+          "objective": {
+            "type": "string",
+            "title": "Objective"
+          },
+          "assessment": {
+            "type": "string",
+            "title": "Assessment"
+          },
+          "plan": {
+            "type": "string",
+            "title": "Plan"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subjective",
+          "objective",
+          "assessment",
+          "plan"
+        ],
+        "title": "SOAPSections"
+      },
+      "SeverityLevel": {
+        "type": "string",
+        "enum": [
+          "low",
+          "moderate",
+          "high",
+          "critical"
+        ],
+        "title": "SeverityLevel"
+      },
+      "TriageLevel": {
+        "type": "string",
+        "enum": [
+          "CRITICAL_EMERGENCY",
+          "URGENT",
+          "ROUTINE"
+        ],
+        "title": "TriageLevel"
+      },
+      "TriageRequest": {
+        "properties": {
+          "symptoms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Symptoms",
+            "description": "List of reported symptoms"
+          },
+          "possible_toxin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Possible Toxin",
+            "description": "Suspected toxin or substance if known"
+          },
+          "species": {
+            "type": "string",
+            "title": "Species"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symptoms",
+          "species"
+        ],
+        "title": "TriageRequest"
+      },
+      "TriageResponse": {
+        "properties": {
+          "severity": {
+            "$ref": "#/components/schemas/SeverityLevel"
+          },
+          "escalation_required": {
+            "type": "boolean",
+            "title": "Escalation Required",
+            "description": "When True the UI MUST display an emergency alert and block all non-emergency flows."
+          },
+          "reasoning": {
+            "type": "string",
+            "title": "Reasoning"
+          },
+          "recommended_action": {
+            "type": "string",
+            "title": "Recommended Action"
+          }
+        },
+        "type": "object",
+        "required": [
+          "severity",
+          "escalation_required",
+          "reasoning",
+          "recommended_action"
+        ],
+        "title": "TriageResponse"
+      },
+      "TriageResult": {
+        "properties": {
+          "is_emergency": {
+            "type": "boolean",
+            "title": "Is Emergency",
+            "description": "When True the UI MUST display a full-screen emergency alert and block all non-emergency booking flows."
+          },
+          "triage_level": {
+            "$ref": "#/components/schemas/TriageLevel"
+          },
+          "severity_score": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Severity Score",
+            "description": "1 = most critical, 5 = routine. Maps to CRITICAL(1), URGENT(2-3), ROUTINE(4-5)."
+          },
+          "soap_summary": {
+            "type": "string",
+            "title": "Soap Summary",
+            "description": "Structured SOAP brief generated by the Cognitive Load Reducer."
+          },
+          "action_required": {
+            "type": "string",
+            "title": "Action Required",
+            "description": "Plain-language instruction for the owner or front-desk staff."
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_emergency",
+          "triage_level",
+          "severity_score",
+          "soap_summary",
+          "action_required"
+        ],
+        "title": "TriageResult",
+        "description": "Result of the Human-AI Boundary Manager triage evaluation."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "_AssessResponse": {
+        "properties": {
+          "triage": {
+            "$ref": "#/components/schemas/TriageResult"
+          },
+          "booking": {
+            "$ref": "#/components/schemas/BookingResult"
+          }
+        },
+        "type": "object",
+        "required": [
+          "triage",
+          "booking"
+        ],
+        "title": "_AssessResponse"
+      },
+      "_RouteBookingRequest": {
+        "properties": {
+          "intake": {
+            "$ref": "#/components/schemas/PetIntakeInput"
+          },
+          "triage": {
+            "$ref": "#/components/schemas/TriageResult"
+          }
+        },
+        "type": "object",
+        "required": [
+          "intake",
+          "triage"
+        ],
+        "title": "_RouteBookingRequest"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Local development server \u2014 replace with deployed URL for production"
+    }
+  ]
+}

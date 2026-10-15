@@ -1,0 +1,15 @@
+{
+  "id": "session-1792091622250",
+  "startedAt": "2026-10-15T19:13:42.250Z",
+  "cwd": "/Users/saisumanthpuligilla/Documents/Vetrelay_AI",
+  "context": {},
+  "metrics": {
+    "edits": 0,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "restoredAt": "2026-10-15T19:18:59.463Z",
+  "endedAt": "2026-10-15T19:19:21.845Z",
+  "duration": 339596
+}
