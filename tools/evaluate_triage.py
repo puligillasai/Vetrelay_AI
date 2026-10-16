@@ -15,7 +15,7 @@ import os
 import httpx
 from ibm_watsonx_orchestrate.agent_builder.tools import tool
 
-_API_BASE = os.getenv("VETRELAY_API_URL", "http://localhost:8000")
+_API_BASE = os.getenv("VETRELAY_API_URL", "https://surreal-traps-bubbly.ngrok-free.dev")
 
 
 @tool
@@ -75,6 +75,7 @@ def evaluate_pet_triage(
     response = httpx.post(
         f"{_API_BASE}/api/triage",
         json=payload,
+        headers={"ngrok-skip-browser-warning": "true"},
         timeout=30,
     )
     response.raise_for_status()

@@ -1,0 +1,16 @@
+# Secrets & Virtual Environments
+.env
+.venv/
+venv/
+
+# Python Bytecode & Pytest Cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local Agent State & Databases
+.swarm/
+ruvector.db
+.claude-flow/
+.agents/
+.claude/
