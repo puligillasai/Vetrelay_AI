@@ -10,6 +10,12 @@ The /api/* routes are the canonical integration surface; the /soap|triage|routin
 sub-routers are retained for backward compatibility with existing tests.
 """
 
+from datetime import datetime, timezone
+from dotenv import load_dotenv
+
+# Load environment variables before importing services that depend on them
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -19,6 +25,7 @@ from backend.agents.triage_agent import evaluate_triage
 from backend.routers import routing, soap
 from backend.routers import triage as triage_router
 from backend.schemas import BookingResult, PetIntakeInput, TriageResult
+from backend.services.cloudant_db import save_triage_record
 from backend.telemetry import get_logger, setup_telemetry
 
 log = get_logger("vetrelay.api")
@@ -139,6 +146,34 @@ async def api_assess(intake: PetIntakeInput) -> _AssessResponse:
         triage_result.triage_level.value,
         booking_result.clinic_name,
     )
+
+    # Persist intake encounter to Cloudant
+    try:
+        record = {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "owner_name": intake.owner_name,
+            "pet_name": intake.pet_name,
+            "species": intake.species,
+            "age_years": intake.age_years,
+            "owner_zip": getattr(intake, "owner_zip", None),
+            "reported_symptoms": intake.reported_symptoms,
+            "duration_hours": intake.duration_hours,
+            "triage_level": triage_result.triage_level.value,
+            "is_emergency": triage_result.is_emergency,
+            "severity_score": triage_result.severity_score,
+            "soap_brief": getattr(
+                triage_result,
+                "soap_brief",
+                getattr(triage_result, "soap_summary", getattr(triage_result, "soap_note", None)),
+            ),
+            "assigned_clinic": booking_result.clinic_name,
+            "scheduled_slot": booking_result.scheduled_slot,
+        }
+        save_triage_record(record)
+        log.info("event=cloudant_record_saved pet_name=%r", intake.pet_name)
+    except Exception as exc:
+        log.warning("event=cloudant_save_failed error=%s", str(exc))
+
     return _AssessResponse(triage=triage_result, booking=booking_result)
 
 

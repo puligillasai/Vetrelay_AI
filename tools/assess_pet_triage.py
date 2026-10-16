@@ -1,37 +1,42 @@
 """VetRelay AI — watsonx Orchestrate tool: assessPetTriage.
 
-This file is the ADK Python tool that the VetRelay Coordinator agent calls.
-It wraps the FastAPI /api/assess endpoint so watsonx Orchestrate can invoke
-triage + booking in a single round-trip.
-
-Import into watsonx Orchestrate:
-    orchestrate tools import -k python -f tools/assess_pet_triage.py
-
-The tool calls the VetRelay FastAPI backend at VETRELAY_API_URL (default:
-http://localhost:8000).  Set the environment variable to your deployed URL
-before importing into a production Orchestrate environment.
+ADK Python tool that wraps the FastAPI /api/assess endpoint.
+Handles robust type casting so natural conversational phrasing
+(e.g., "1 hour ago", omitted age) never causes tool execution crashes.
 """
 
 from __future__ import annotations
 
 import os
-
+import re
+from typing import Any
 import httpx
 from ibm_watsonx_orchestrate.agent_builder.tools import tool
 
-_API_BASE = os.getenv("VETRELAY_API_URL", "https://surreal-traps-bubbly.ngrok-free.dev")
+_API_BASE = "https://surreal-traps-bubbly.ngrok-free.dev"
+
+
+def _parse_float(val: Any, default: float = 1.0) -> float:
+    """Extract first float or integer from any input (e.g. '1.5 hours' -> 1.5)."""
+    if val is None:
+        return default
+    if isinstance(val, (int, float)):
+        return float(val)
+    match = re.search(r"(\d+(?:\.\d+)?)", str(val))
+    return float(match.group(1)) if match else default
 
 
 @tool
 def assess_pet_triage(
-    owner_name: str,
-    pet_name: str,
-    species: str,
-    age_years: float,
-    reported_symptoms: str,
-    duration_hours: float,
+    owner_name: str = "Anonymous",
+    pet_name: str = "Unknown",
+    species: str = "canine",
+    age_years: Any = 3.0,
+    reported_symptoms: str = "general malaise",
+    duration_hours: Any = 2.0,
     suspected_toxicity: bool = False,
-) -> dict:
+    owner_zip: str = "75038",
+) -> dict[str, Any]:
     """Assess a pet's triage level and book the most appropriate clinic in a single call.
 
     Collects the pet owner's intake information, runs a deterministic triage
@@ -45,46 +50,60 @@ def assess_pet_triage(
     scheduling when is_emergency is true.
 
     Args:
-        owner_name: Full name of the pet owner (used for appointment labelling only).
-        pet_name: Name of the pet (e.g. "Buddy").
-        species: Species of the pet. One of: canine, feline, avian, reptile, exotic.
-        age_years: Approximate age of the pet in years (e.g. 3.5).
-        reported_symptoms: Comma-separated list of symptoms reported by the owner
-            (e.g. "vomiting, lethargy, pale gums"). Be as descriptive as possible.
-        duration_hours: How many hours the symptoms have been present (e.g. 6.0).
-        suspected_toxicity: Set to True if the owner believes the pet ingested a
-            toxic substance such as chocolate, grapes, xylitol, rat poison,
-            antifreeze, medications, or any household chemical. Defaults to False.
+        owner_name: Full name of the pet owner.
+        pet_name: Name of the pet.
+        species: Species of the pet (canine, feline, etc.). Defaults to canine.
+        age_years: Age of the pet in years (e.g., 4 or '4 years'). Defaults to 3.0.
+        reported_symptoms: Symptoms described by the owner (e.g. 'vomiting, chocolate').
+        duration_hours: Time elapsed in hours (e.g., 1.5 or 'about an hour'). Defaults to 2.0.
+        suspected_toxicity: True if toxin ingestion is suspected. Defaults to False.
+        owner_zip: 5-digit zip code for local clinic routing. Defaults to '75038'.
 
     Returns:
-        A dict containing:
-        - triage.is_emergency (bool): True means IMMEDIATE emergency care required.
-        - triage.triage_level (str): CRITICAL_EMERGENCY | URGENT | ROUTINE
-        - triage.severity_score (int): 1 (most critical) to 5 (routine)
-        - triage.soap_summary (str): Structured SOAP clinical brief
-        - triage.action_required (str): Plain-language instruction for the owner
-        - booking.clinic_name (str): Name of the assigned clinic
-        - booking.address (str): Address of the assigned clinic
-        - booking.scheduled_slot (str): ISO datetime or "IMMEDIATE WALK-IN"
-        - booking.instructions (str): What the owner should bring and expect
+        A dict containing triage results, emergency flags, clinic details, and SOAP note.
     """
-    symptoms_list = [s.strip() for s in reported_symptoms.split(",") if s.strip()]
+    # Safe symptom extraction
+    if isinstance(reported_symptoms, list):
+        symptoms_list = [str(s).strip() for s in reported_symptoms if str(s).strip()]
+    else:
+        symptoms_list = [s.strip() for s in str(reported_symptoms).split(",") if s.strip()]
+
+    if not symptoms_list:
+        symptoms_list = ["unspecified symptoms"]
+
+    # Safe numeric conversion
+    safe_age = _parse_float(age_years, default=3.0)
+    safe_duration = _parse_float(duration_hours, default=2.0)
+
+    # Detect toxicity from symptom text if flag was omitted by LLM
+    text_check = " ".join(symptoms_list).lower()
+    toxin_keywords = ["chocolate", "xylitol", "poison", "antifreeze", "grapes", "raisins", "rat"]
+    detected_toxicity = bool(suspected_toxicity) or any(t in text_check for t in toxin_keywords)
 
     payload = {
-        "owner_name": owner_name,
-        "pet_name": pet_name,
-        "species": species.lower(),
-        "age_years": age_years,
+        "owner_name": str(owner_name or "Anonymous"),
+        "pet_name": str(pet_name or "Unknown"),
+        "species": str(species or "canine").lower(),
+        "age_years": safe_age,
         "reported_symptoms": symptoms_list,
-        "duration_hours": duration_hours,
-        "suspected_toxicity": suspected_toxicity,
+        "duration_hours": safe_duration,
+        "suspected_toxicity": detected_toxicity,
+        "owner_zip": str(owner_zip or "75038"),
     }
 
-    response = httpx.post(
-        f"{_API_BASE}/api/assess",
-        json=payload,
-        headers={"ngrok-skip-browser-warning": "true"},
-        timeout=30,
-    )
-    response.raise_for_status()
-    return response.json()
+    try:
+        response = httpx.post(
+            f"{_API_BASE}/api/assess",
+            json=payload,
+            headers={"ngrok-skip-browser-warning": "true"},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        return {
+            "error": str(exc),
+            "is_emergency": detected_toxicity,
+            "triage_level": "CRITICAL_EMERGENCY" if detected_toxicity else "URGENT",
+            "action_required": "Please proceed directly to the nearest emergency veterinary facility.",
+        }
