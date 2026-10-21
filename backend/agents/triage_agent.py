@@ -76,8 +76,64 @@ _CRITICAL_SYMPTOMS: frozenset[str] = frozenset(
         "paresis",
         "suspected toxin",
         "ingested poison",
+        # Feline-specific critical presentations
+        "cannot urinate",
+        "not urinating",
+        "no urine",
+        "urinary blockage",
+        "blocked bladder",
+        "straining and no urine",
+        # Canine GDV / bloat
+        "unproductive retching",
+        "distended abdomen",
+        "retching without vomiting",
+        # Avian / exotic critical
+        "open mouth breathing",
+        "tail bobbing",
+        "falling off perch",
+        "gi stasis",
+        "gut stasis",
+        "no droppings",
+        # General
+        "heatstroke",
+        "heat stroke",
+        "severe dehydration",
     }
 )
+
+# Species-specific critical symptom patterns.
+# Key: species substring (case-insensitive); value: frozenset of critical keywords.
+_SPECIES_CRITICAL: dict[str, frozenset[str]] = {
+    "feline": frozenset(
+        {
+            "straining to urinate",
+            "crying when urinating",
+            "licking genitals excessively",
+            "no litter box output",
+        }
+    ),
+    "canine": frozenset(
+        {
+            "sudden abdominal swelling",
+            "gulping air",
+            "pacing restlessly with distended belly",
+        }
+    ),
+    "avian": frozenset(
+        {
+            "fluffed feathers",
+            "sitting on cage floor",
+            "laboured breathing",
+        }
+    ),
+    "rabbit": frozenset(
+        {
+            "not eating for 6 hours",
+            "no fecal pellets",
+            "hunched posture",
+        }
+    ),
+}
 
 # Symptom keywords that indicate URGENT (score 2-3).
 _URGENT_SYMPTOMS: frozenset[str] = frozenset(
@@ -104,6 +160,13 @@ _URGENT_SYMPTOMS: frozenset[str] = frozenset(
         "crying in pain",
         "fever",
         "high temperature",
+        # Avian / exotic urgent
+        "ruffled feathers",
+        "decreased activity",
+        "soft droppings",
+        # Rabbit urgent
+        "reduced appetite",
+        "fewer droppings",
     }
 )
 
@@ -137,7 +200,14 @@ def _is_critical_toxin(intake: PetIntakeInput) -> bool:
 
 def _is_critical_symptom(intake: PetIntakeInput) -> bool:
     tokens = _symptom_tokens(intake.reported_symptoms)
-    return any(_matches_any(t, _CRITICAL_SYMPTOMS) for t in tokens)
+    if any(_matches_any(t, _CRITICAL_SYMPTOMS) for t in tokens):
+        return True
+    # Species-specific critical gate
+    species_lower = intake.species.lower()
+    for species_key, catalogue in _SPECIES_CRITICAL.items():
+        if species_key in species_lower and any(_matches_any(t, catalogue) for t in tokens):
+            return True
+    return False
 
 
 def _count_urgent(intake: PetIntakeInput) -> int:

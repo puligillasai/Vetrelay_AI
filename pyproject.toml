@@ -16,6 +16,11 @@ dependencies = [
     "pydantic>=2.7",
     "httpx>=0.27",
     "streamlit>=1.35",
+    "python-dotenv>=1.0",
+    "ibmcloudant>=0.9.0",
+    "ibm-cloud-sdk-core>=3.16.0",
+    "ibm-watson>=7.0.0",
+    "audio-recorder-streamlit>=0.0.8",
 ]
 
 [project.optional-dependencies]

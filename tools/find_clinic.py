@@ -11,11 +11,39 @@ Import into watsonx Orchestrate:
 from __future__ import annotations
 
 import os
+import time
+from typing import Any
 
 import httpx
 from ibm_watsonx_orchestrate.agent_builder.tools import tool
 
-_API_BASE = os.getenv("VETRELAY_API_URL", "http://localhost:8000")
+_API_BASE = os.getenv("VETRELAY_API_URL", "https://surreal-traps-bubbly.ngrok-free.dev")
+_MAX_RETRIES = 3
+_RETRY_DELAY_SECONDS = 1.0
+_TIMEOUT_SECONDS = 30.0
+
+
+def _post_with_retry(url: str, json: dict[str, Any]) -> dict[str, Any]:
+    """POST with exponential backoff retry logic."""
+    last_error: Exception | None = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            response = httpx.post(url, json=json, timeout=_TIMEOUT_SECONDS)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            last_error = e
+            if e.response.status_code >= 500 and attempt < _MAX_RETRIES - 1:
+                time.sleep(_RETRY_DELAY_SECONDS * (2**attempt))
+                continue
+            raise
+        except (httpx.RequestError, httpx.TimeoutException) as e:
+            last_error = e
+            if attempt < _MAX_RETRIES - 1:
+                time.sleep(_RETRY_DELAY_SECONDS * (2**attempt))
+                continue
+            raise
+    raise last_error or RuntimeError("Unexpected retry exhaustion")
 
 
 @tool

@@ -8,7 +8,7 @@ description: |
   best clinic — or falls back to Metro 24/7 for emergencies or when no compatible
   clinic has capacity. Use this agent after triage is complete when you need to
   assign a clinic appointment independently of the triage step.
-llm: groq/openai/gpt-oss-120b
+llm: watsonx/ibm/granite-3-8b-instruct
 style: react_core
 hide_reasoning: false
 memory_enabled: false

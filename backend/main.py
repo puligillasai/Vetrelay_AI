@@ -10,11 +10,16 @@ The /api/* routes are the canonical integration surface; the /soap|triage|routin
 sub-routers are retained for backward compatibility with existing tests.
 """
 
-from datetime import datetime, timezone
-from dotenv import load_dotenv
+# Load environment variables before any module that reads them.
+# dotenv is optional — if not installed (CI/CD), os.environ is used directly.
+try:
+    from dotenv import load_dotenv
 
-# Load environment variables before importing services that depend on them
-load_dotenv()
+    load_dotenv()
+except ImportError:
+    pass
+
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,6 +44,8 @@ app = FastAPI(
     ),
     version="0.2.0",
     openapi_version="3.0.3",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 app.add_middleware(
@@ -114,6 +121,33 @@ async def api_route_booking(body: _RouteBookingRequest) -> BookingResult:
         result.clinic_name,
         result.scheduled_slot,
     )
+
+    # Persist booking record to Cloudant so every booking path is captured,
+    # not just those that go through /api/assess.
+    try:
+        record = {
+            "created_at": datetime.now(UTC).isoformat(),
+            "record_type": "booking",
+            "owner_name": body.intake.owner_name,
+            "pet_name": body.intake.pet_name,
+            "species": body.intake.species,
+            "age_years": body.intake.age_years,
+            "reported_symptoms": body.intake.reported_symptoms,
+            "duration_hours": body.intake.duration_hours,
+            "triage_level": body.triage.triage_level.value,
+            "is_emergency": body.triage.is_emergency,
+            "severity_score": body.triage.severity_score,
+            "soap_brief": body.triage.soap_summary,
+            "assigned_clinic": result.clinic_name,
+            "clinic_address": result.address,
+            "scheduled_slot": result.scheduled_slot,
+            "instructions": result.instructions,
+        }
+        save_triage_record(record)
+        log.info("event=cloudant_booking_saved pet_name=%r", body.intake.pet_name)
+    except Exception as exc:
+        log.warning("event=cloudant_booking_save_failed error=%s", str(exc))
+
     return result
 
 
@@ -147,10 +181,11 @@ async def api_assess(intake: PetIntakeInput) -> _AssessResponse:
         booking_result.clinic_name,
     )
 
-    # Persist intake encounter to Cloudant
+    # Persist full encounter record (triage + booking) to Cloudant
     try:
         record = {
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
+            "record_type": "assess",
             "owner_name": intake.owner_name,
             "pet_name": intake.pet_name,
             "species": intake.species,
@@ -161,13 +196,12 @@ async def api_assess(intake: PetIntakeInput) -> _AssessResponse:
             "triage_level": triage_result.triage_level.value,
             "is_emergency": triage_result.is_emergency,
             "severity_score": triage_result.severity_score,
-            "soap_brief": getattr(
-                triage_result,
-                "soap_brief",
-                getattr(triage_result, "soap_summary", getattr(triage_result, "soap_note", None)),
-            ),
+            "soap_brief": triage_result.soap_summary,
+            "action_required": triage_result.action_required,
             "assigned_clinic": booking_result.clinic_name,
+            "clinic_address": booking_result.address,
             "scheduled_slot": booking_result.scheduled_slot,
+            "instructions": booking_result.instructions,
         }
         save_triage_record(record)
         log.info("event=cloudant_record_saved pet_name=%r", intake.pet_name)
@@ -184,6 +218,16 @@ async def api_assess(intake: PetIntakeInput) -> _AssessResponse:
 app.include_router(soap.router, prefix="/soap", tags=["SOAP Summarisation (legacy)"])
 app.include_router(triage_router.router, prefix="/triage", tags=["Triage (legacy)"])
 app.include_router(routing.router, prefix="/routing", tags=["Routing (legacy)"])
+
+
+@app.get("/", tags=["Meta"])
+async def root() -> dict[str, str]:
+    return {
+        "service": "VetRelay AI",
+        "status": "online",
+        "docs": "/docs",
+        "health": "/healthz",
+    }
 
 
 @app.get("/healthz", tags=["Meta"])

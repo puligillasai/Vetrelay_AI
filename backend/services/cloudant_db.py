@@ -1,7 +1,8 @@
 import os
 from typing import Any
-from ibmcloudant.cloudant_v1 import CloudantV1, Document
+
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
+from ibmcloudant.cloudant_v1 import CloudantV1, Document
 
 
 def get_cloudant_client() -> CloudantV1:

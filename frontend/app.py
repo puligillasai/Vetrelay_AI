@@ -7,16 +7,42 @@ Sidebar toggle switches between:
 Calls POST /api/assess for MVP 1 (single round-trip: triage + booking).
 MVP 2 simulates a live queue using session_state to accumulate submitted cases
 so the console reflects every assessment made in the current browser session.
+
+Voice-to-text:
+  Uses audio_recorder_streamlit to capture browser mic audio, then transcribes
+  via IBM Watson Speech-to-Text.  Falls back gracefully if Watson is not configured.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from typing import Any
 
 import httpx
 import streamlit as st
+
+# ---------------------------------------------------------------------------
+# Optional IBM Watson STT import (graceful degradation if not installed/configured)
+# ---------------------------------------------------------------------------
+
+try:
+    from ibm_cloud_sdk_core.authenticators import IAMAuthenticator as _IAMAuthenticator
+    from ibm_watson import SpeechToTextV1
+
+    _WATSON_APIKEY = os.getenv("WATSON_STT_APIKEY", "")
+    _WATSON_URL = os.getenv("WATSON_STT_URL", "")
+    _WATSON_AVAILABLE = bool(_WATSON_APIKEY and _WATSON_URL)
+except ImportError:
+    _WATSON_AVAILABLE = False
+
+try:
+    from audio_recorder_streamlit import audio_recorder as _audio_recorder
+
+    _AUDIO_RECORDER_AVAILABLE = True
+except ImportError:
+    _AUDIO_RECORDER_AVAILABLE = False
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -106,6 +132,63 @@ st.markdown(
     .queue-row-critical { border-color: #b91c1c; }
     .queue-row-urgent   { border-color: #d97706; }
     .queue-row-routine  { border-color: #15803d; }
+    /* Scheduling progress stepper */
+    .vr-stepper {
+        display: flex;
+        align-items: flex-start;
+        gap: 0;
+        margin: 1rem 0 1.5rem;
+        padding: 1rem 1.25rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+    }
+    .vr-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex: 1;
+        position: relative;
+    }
+    .vr-step:not(:last-child)::after {
+        content: "";
+        position: absolute;
+        top: 14px;
+        left: 50%;
+        width: 100%;
+        height: 2px;
+        background: #e2e8f0;
+        z-index: 0;
+    }
+    .vr-step.done::after  { background: #15803d; }
+    .vr-step.active::after { background: #3b82d4; }
+    .vr-step-circle {
+        width: 28px; height: 28px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        color: #94a3b8;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.78rem; font-weight: 700;
+        position: relative; z-index: 1;
+    }
+    .vr-step.done  .vr-step-circle { background: #15803d; color: #fff; }
+    .vr-step.active .vr-step-circle { background: #3b82d4; color: #fff; }
+    .vr-step-label {
+        font-size: 0.7rem;
+        color: #94a3b8;
+        margin-top: 0.3rem;
+        text-align: center;
+        max-width: 80px;
+        line-height: 1.3;
+    }
+    .vr-step.done  .vr-step-label { color: #15803d; }
+    .vr-step.active .vr-step-label { color: #3b82d4; font-weight: 600; }
+    /* Voice recorder hint */
+    .vr-voice-hint {
+        font-size: 0.78rem;
+        color: #57606a;
+        margin-bottom: 0.4rem;
+    }
     /* Footer */
     .vr-footer {
         text-align: center;
@@ -132,6 +215,29 @@ if "case_queue" not in st.session_state:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _transcribe_audio(audio_bytes: bytes) -> str | None:
+    """Transcribe audio bytes via IBM Watson Speech-to-Text.
+
+    Returns the transcript string, or None if transcription failed.
+    Only called when _WATSON_AVAILABLE is True.
+    """
+    try:
+        authenticator = _IAMAuthenticator(_WATSON_APIKEY)
+        stt = SpeechToTextV1(authenticator=authenticator)
+        stt.set_service_url(_WATSON_URL)
+        result = stt.recognize(
+            audio=audio_bytes,
+            content_type="audio/wav",
+            model="en-US_BroadbandModel",
+        ).get_result()
+        alternatives = result.get("results", [{}])[0].get("alternatives", [{}])
+        if alternatives:
+            return alternatives[0].get("transcript", "").strip()
+    except Exception as exc:
+        st.warning(f"Voice transcription failed: {exc}")
+    return None
 
 
 def _post_assess(payload: dict) -> dict | None:
@@ -214,6 +320,77 @@ if view == "🐾  Pet Owner Intake":
     )
     st.divider()
 
+    # ── Scheduling progress stepper (Step 1 active until form submitted) ────
+    _result_ready = bool(st.session_state.get("last_result"))
+
+    def _step_cls(step_n: int, active: int) -> str:  # noqa: E306
+        if step_n < active:
+            return "vr-step done"
+        if step_n == active:
+            return "vr-step active"
+        return "vr-step"
+
+    _active_step = 3 if _result_ready else 1
+    st.markdown(
+        f"""
+        <div class="vr-stepper">
+          <div class="{_step_cls(1, _active_step)}">
+            <div class="vr-step-circle">{"✓" if _active_step > 1 else "1"}</div>
+            <div class="vr-step-label">Intake &amp; Symptoms</div>
+          </div>
+          <div class="{_step_cls(2, _active_step)}">
+            <div class="vr-step-circle">{"✓" if _active_step > 2 else "2"}</div>
+            <div class="vr-step-label">Triage Assessment</div>
+          </div>
+          <div class="{_step_cls(3, _active_step)}">
+            <div class="vr-step-circle">{"✓" if _active_step > 3 else "3"}</div>
+            <div class="vr-step-label">Clinic Routing</div>
+          </div>
+          <div class="{_step_cls(4, _active_step)}">
+            <div class="vr-step-circle">4</div>
+            <div class="vr-step-label">Front-Desk Handoff</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ── Voice-to-text recorder (outside form — must be outside st.form) ─────
+    _voice_transcript: str = st.session_state.get("voice_transcript", "")
+    if _AUDIO_RECORDER_AVAILABLE:
+        st.markdown(
+            '<p class="vr-voice-hint">🎙️ <strong>Voice input:</strong> '
+            "Click the mic to record your pet's symptoms — transcript will "
+            "auto-fill the symptoms box below.</p>",
+            unsafe_allow_html=True,
+        )
+        _audio_bytes = _audio_recorder(
+            text="",
+            recording_color="#b91c1c",
+            neutral_color="#3b82d4",
+            icon_size="2x",
+            key="voice_recorder",
+        )
+        if _audio_bytes and len(_audio_bytes) > 1000:
+            if _WATSON_AVAILABLE:
+                with st.spinner("Transcribing audio via IBM Watson STT…"):
+                    _transcript = _transcribe_audio(_audio_bytes)
+                if _transcript:
+                    st.session_state["voice_transcript"] = _transcript
+                    st.success(f"Transcript: *{_transcript}*")
+                    _voice_transcript = _transcript
+            else:
+                st.info(
+                    "Watson STT not configured — set `WATSON_STT_APIKEY` and "
+                    "`WATSON_STT_URL` in your `.env` to enable transcription. "
+                    "You can still type symptoms manually below."
+                )
+    else:
+        st.caption(
+            "💡 Install `audio-recorder-streamlit` to enable voice input: "
+            "`pip install audio-recorder-streamlit`"
+        )
+
     with st.form("intake_form", clear_on_submit=False):
         col_a, col_b = st.columns(2)
 
@@ -253,6 +430,7 @@ if view == "🐾  Pet Owner Intake":
 
         symptoms_raw = st.text_area(
             "Describe the symptoms",
+            value=_voice_transcript,
             placeholder=(
                 "e.g. vomiting since this morning, not eating, trembling, pale gums…\n"
                 "Separate multiple symptoms with commas or new lines."
@@ -260,11 +438,14 @@ if view == "🐾  Pet Owner Intake":
             height=110,
         )
 
-        submitted = st.form_submit_button("🔍 Assess & Find Clinic", use_container_width=True)
+        submitted = st.form_submit_button("🔍 Assess & Find Clinic", width="stretch")
 
     # ── Form submission ──────────────────────────────────────────────────────
 
     if submitted:
+        # Clear any prior voice transcript so it doesn't persist unexpectedly
+        st.session_state.pop("voice_transcript", None)
+
         # Validation
         errors: list[str] = []
         if not owner_name.strip():
@@ -294,11 +475,18 @@ if view == "🐾  Pet Owner Intake":
             "suspected_toxicity": suspected_toxicity,
         }
 
-        with st.spinner("Assessing your pet's condition…"):
+        # Steps 2 + 3: triage assessment → clinic routing
+        step_status = st.status("Running triage assessment…", expanded=True)
+        with step_status:
+            st.write("Step 2 — Evaluating symptoms and triage level…")
             result = _post_assess(payload)
+            if result is None:
+                step_status.update(label="Assessment failed", state="error")
+                st.stop()
+            st.write("Step 3 — Routing to nearest compatible clinic…")
+            step_status.update(label="Assessment complete — clinic assigned ✓", state="complete")
 
-        if result is None:
-            st.stop()
+        st.session_state["last_result"] = result
 
         triage = result["triage"]
         booking = result["booking"]
@@ -329,8 +517,11 @@ if view == "🐾  Pet Owner Intake":
             st.markdown(
                 f"**Recommended action:** {triage['action_required']}",
             )
-            # Do not show booking details or SOAP in emergency — stop here
-            # so staff queue can capture the case
+            # Step 4: front-desk handoff (Cloudant persistence already done in /api/assess)
+            st.success(
+                "Step 4 — Clinical record sent to front-desk queue ✓",
+                icon="🏥",
+            )
             st.session_state.case_queue.insert(
                 0,
                 {
@@ -410,6 +601,12 @@ if view == "🐾  Pet Owner Intake":
             st.markdown(
                 f"**Recommended action:** {triage['action_required']}",
             )
+
+        # Step 4: front-desk handoff confirmation
+        st.success(
+            "Step 4 — Clinical record sent to front-desk queue ✓",
+            icon="🏥",
+        )
 
         # Persist to queue
         st.session_state.case_queue.insert(

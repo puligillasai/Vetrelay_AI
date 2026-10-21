@@ -9,7 +9,7 @@ description: |
   hospital or the nearest available clinic. Use this agent whenever a pet owner
   needs to describe their pet's symptoms and receive a triage assessment and
   clinic booking.
-llm: groq/openai/gpt-oss-120b
+llm: watsonx/ibm/granite-3-8b-instruct
 style: react_core
 hide_reasoning: false
 memory_enabled: false

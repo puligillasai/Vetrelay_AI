@@ -7,10 +7,18 @@ venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Local Agent State & Databases
+# Local Agent / IDE State
 .swarm/
 ruvector.db
 .claude-flow/
 .agents/
 .claude/
+.bob/
+
+# Node (not used by this project)
+node_modules/
+package.json
+package-lock.json

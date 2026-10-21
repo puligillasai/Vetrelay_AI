@@ -10,17 +10,18 @@ from __future__ import annotations
 import os
 import re
 from typing import Any
+
 import httpx
 from ibm_watsonx_orchestrate.agent_builder.tools import tool
 
-_API_BASE = "https://surreal-traps-bubbly.ngrok-free.dev"
+_API_BASE = os.getenv("VETRELAY_API_URL", "http://localhost:8000")
 
 
 def _parse_float(val: Any, default: float = 1.0) -> float:
     """Extract first float or integer from any input (e.g. '1.5 hours' -> 1.5)."""
     if val is None:
         return default
-    if isinstance(val, (int, float)):
+    if isinstance(val, int | float):
         return float(val)
     match = re.search(r"(\d+(?:\.\d+)?)", str(val))
     return float(match.group(1)) if match else default
@@ -105,5 +106,7 @@ def assess_pet_triage(
             "error": str(exc),
             "is_emergency": detected_toxicity,
             "triage_level": "CRITICAL_EMERGENCY" if detected_toxicity else "URGENT",
-            "action_required": "Please proceed directly to the nearest emergency veterinary facility.",
+            "action_required": (
+                "Please proceed directly to the nearest emergency veterinary facility."
+            ),
         }

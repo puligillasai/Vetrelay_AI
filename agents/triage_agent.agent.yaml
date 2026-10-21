@@ -7,7 +7,7 @@ description: |
   toxins and life-threatening symptom presentations before any AI reasoning, ensuring that
   emergency cases are never under-triaged. Use this agent when you need a standalone triage
   assessment without clinic booking, or when building a multi-step intake pipeline.
-llm: groq/openai/gpt-oss-120b
+llm: watsonx/ibm/granite-3-8b-instruct
 style: react_core
 hide_reasoning: false
 memory_enabled: false
