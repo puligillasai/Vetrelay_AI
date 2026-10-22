@@ -20,8 +20,9 @@ except ImportError:
     pass
 
 from datetime import UTC, datetime
+from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -30,7 +31,8 @@ from backend.agents.triage_agent import evaluate_triage
 from backend.routers import routing, soap
 from backend.routers import triage as triage_router
 from backend.schemas import BookingResult, PetIntakeInput, TriageResult
-from backend.services.cloudant_db import save_triage_record
+from backend.services.cloudant_db import get_recent_records, save_triage_record
+from backend.services.watson_tts import booking_speech, triage_speech
 from backend.telemetry import get_logger, setup_telemetry
 
 log = get_logger("vetrelay.api")
@@ -43,10 +45,27 @@ app = FastAPI(
         "Designed for consumption by IBM watsonx Orchestrate via OpenAPI 3.0 and MCP."
     ),
     version="0.2.0",
-    openapi_version="3.0.3",
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    from fastapi.openapi.utils import get_openapi
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    openapi_schema["openapi"] = "3.0.3"
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
 
 app.add_middleware(
     CORSMiddleware,
@@ -209,6 +228,152 @@ async def api_assess(intake: PetIntakeInput) -> _AssessResponse:
         log.warning("event=cloudant_save_failed error=%s", str(exc))
 
     return _AssessResponse(triage=triage_result, booking=booking_result)
+
+
+# ---------------------------------------------------------------------------
+# /api/intakes — Cloudant record retrieval (front-desk queue sync)
+# ---------------------------------------------------------------------------
+
+
+@app.get(
+    "/api/intakes",
+    tags=["VetRelay API"],
+    summary="Retrieve recent triage/booking intake records from Cloudant",
+    operation_id="listIntakes",
+)
+async def api_intakes(limit: int = 20) -> list[dict[str, Any]]:
+    """Return the *limit* most recent encounter records persisted in Cloudant.
+
+    Used by the clinic front-desk console (MVP 2) to synchronise the queue
+    across sessions and by integration tests to verify Cloudant persistence.
+    Returns an empty list when Cloudant is unavailable or credentials are missing.
+    """
+    records = get_recent_records(limit=limit)
+    log.info("event=api_intakes_fetched count=%d", len(records))
+    return records
+
+
+# ---------------------------------------------------------------------------
+# /api/tts — Watson TTS audio synthesis
+# ---------------------------------------------------------------------------
+
+
+class _TTSRequest(BaseModel):
+    text: str = ""
+    pet_name: str = ""
+    triage_level: str = ""
+    action: str = ""
+    clinic_name: str = ""
+    scheduled_slot: str = ""
+    instructions: str = ""
+    mode: str = "text"  # "text" | "triage" | "booking"
+
+
+@app.post(
+    "/api/tts",
+    tags=["VetRelay API"],
+    summary="Synthesise triage or booking text to WAV audio via IBM Watson TTS",
+    operation_id="synthesiseTTS",
+)
+async def api_tts(body: _TTSRequest) -> Response:
+    """Convert triage or booking text to spoken audio using IBM Watson TTS.
+
+    Modes:
+    - ``text``: Synthesise ``body.text`` directly.
+    - ``triage``: Build a triage direction for ``pet_name`` from ``triage_level``
+      and ``action``, then synthesise.
+    - ``booking``: Build a booking confirmation for ``pet_name`` from
+      ``clinic_name``, ``scheduled_slot``, and ``instructions``, then synthesise.
+
+    Returns WAV audio bytes (``Content-Type: audio/wav``) when TTS is available,
+    or a 200 JSON ``{"status": "tts_unavailable"}`` when credentials are missing.
+    """
+    audio: bytes | None = None
+
+    if body.mode == "triage":
+        audio = triage_speech(body.pet_name, body.triage_level, body.action)
+    elif body.mode == "booking":
+        audio = booking_speech(
+            body.pet_name, body.clinic_name, body.scheduled_slot, body.instructions
+        )
+    else:
+        from backend.services.watson_tts import speak
+
+        audio = speak(body.text or body.action or "")
+
+    if audio:
+        log.info("event=api_tts_synthesised bytes=%d", len(audio))
+        return Response(content=audio, media_type="audio/wav")
+
+    log.info("event=api_tts_unavailable reason=no_audio")
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse({"status": "tts_unavailable"})
+
+
+# ---------------------------------------------------------------------------
+# /api/handoff — front-desk record persistence (called by handoff tool)
+# ---------------------------------------------------------------------------
+
+
+class _HandoffRequest(BaseModel):
+    owner_name: str
+    pet_name: str
+    species: str
+    age_years: float
+    owner_zip: str = "75038"
+    triage_level: str
+    is_emergency: bool
+    severity_score: int
+    soap_summary: str
+    clinic_name: str
+    clinic_address: str
+    scheduled_slot: str
+    booking_instructions: str
+
+
+@app.post(
+    "/api/handoff",
+    tags=["VetRelay API"],
+    summary="Persist a completed intake encounter to the front-desk queue in Cloudant",
+    operation_id="handoffToFrontDesk",
+)
+async def api_handoff(body: _HandoffRequest) -> dict[str, Any]:
+    """Save the completed encounter to Cloudant and return a record ID.
+
+    Called by the ``handoff_to_front_desk`` watsonx Orchestrate tool at the
+    end of the intake pipeline.  Non-blocking — returns ``status=skipped``
+    if Cloudant is unavailable rather than raising.
+    """
+    record: dict[str, Any] = {
+        "created_at": datetime.now(UTC).isoformat(),
+        "record_type": "handoff",
+        "owner_name": body.owner_name,
+        "pet_name": body.pet_name,
+        "species": body.species,
+        "age_years": body.age_years,
+        "owner_zip": body.owner_zip,
+        "triage_level": body.triage_level,
+        "is_emergency": body.is_emergency,
+        "severity_score": body.severity_score,
+        "soap_brief": body.soap_summary,
+        "assigned_clinic": body.clinic_name,
+        "clinic_address": body.clinic_address,
+        "scheduled_slot": body.scheduled_slot,
+        "instructions": body.booking_instructions,
+    }
+    try:
+        result = save_triage_record(record)
+        record_id = result.get("id") if isinstance(result, dict) else None
+        log.info("event=api_handoff_saved pet_name=%r record_id=%r", body.pet_name, record_id)
+        return {"status": "saved", "record_id": record_id, "message": "Encounter record saved."}
+    except Exception as exc:
+        log.warning("event=api_handoff_failed error=%s", str(exc))
+        return {
+            "status": "skipped",
+            "record_id": None,
+            "message": f"Front-desk handoff unavailable: {exc}",
+        }
 
 
 # ---------------------------------------------------------------------------
