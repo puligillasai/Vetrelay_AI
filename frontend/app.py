@@ -8,9 +8,13 @@ Calls POST /api/assess for MVP 1 (single round-trip: triage + booking).
 MVP 2 simulates a live queue using session_state to accumulate submitted cases
 so the console reflects every assessment made in the current browser session.
 
-Voice-to-text:
+Voice-to-text (STT):
   Uses audio_recorder_streamlit to capture browser mic audio, then transcribes
   via IBM Watson Speech-to-Text.  Falls back gracefully if Watson is not configured.
+
+Voice synthesis (TTS):
+  After triage, speaks the urgency level + booking instructions aloud via
+  IBM Watson Text-to-Speech.  Falls back silently if TTS is not configured.
 """
 
 from __future__ import annotations
@@ -45,10 +49,37 @@ except ImportError:
     _AUDIO_RECORDER_AVAILABLE = False
 
 # ---------------------------------------------------------------------------
+# Optional Watson TTS — speak triage/booking results aloud
+# ---------------------------------------------------------------------------
+
+try:
+    from backend.services.watson_tts import booking_speech as _booking_speech
+    from backend.services.watson_tts import triage_speech as _triage_speech
+
+    _TTS_AVAILABLE = True
+except Exception:
+    _TTS_AVAILABLE = False
+
+
+def _play_audio(audio_bytes: bytes | None) -> None:
+    """Embed WAV bytes as an autoplay audio element in Streamlit."""
+    if not audio_bytes:
+        return
+    import base64
+
+    b64 = base64.b64encode(audio_bytes).decode()
+    st.markdown(
+        f'<audio autoplay style="display:none">'
+        f'<source src="data:audio/wav;base64,{b64}" type="audio/wav"></audio>',
+        unsafe_allow_html=True,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-API_BASE = "http://localhost:8000"
+API_BASE = os.getenv("VETRELAY_API_URL", "http://localhost:8000")
 SPECIES_OPTIONS = ["canine", "feline", "avian", "reptile", "exotic", "other"]
 
 TRIAGE_COLOURS = {
@@ -517,6 +548,17 @@ if view == "🐾  Pet Owner Intake":
             st.markdown(
                 f"**Recommended action:** {triage['action_required']}",
             )
+            # TTS — speak emergency direction aloud
+            if _TTS_AVAILABLE:
+                _play_audio(_triage_speech(pet_name.strip(), level, triage["action_required"]))
+                _play_audio(
+                    _booking_speech(
+                        pet_name.strip(),
+                        booking["clinic_name"],
+                        booking["scheduled_slot"],
+                        booking["instructions"],
+                    )
+                )
             # Step 4: front-desk handoff (Cloudant persistence already done in /api/assess)
             st.success(
                 "Step 4 — Clinical record sent to front-desk queue ✓",
@@ -601,6 +643,17 @@ if view == "🐾  Pet Owner Intake":
             st.markdown(
                 f"**Recommended action:** {triage['action_required']}",
             )
+            # TTS — speak booking confirmation aloud
+            if _TTS_AVAILABLE:
+                _play_audio(_triage_speech(pet_name.strip(), level, triage["action_required"]))
+                _play_audio(
+                    _booking_speech(
+                        pet_name.strip(),
+                        booking["clinic_name"],
+                        booking["scheduled_slot"],
+                        booking["instructions"],
+                    )
+                )
 
         # Step 4: front-desk handoff confirmation
         st.success(
@@ -638,6 +691,48 @@ else:
         "Submit cases via the **Pet Owner Intake** view to populate the queue."
     )
     st.divider()
+
+    # ── Real-time Cloudant sync ──────────────────────────────────────────────
+    # Merge any records persisted to Cloudant (e.g. from a different browser
+    # session or the watsonx Orchestrate agent) into the local session queue.
+    try:
+        from backend.services.cloudant_db import get_recent_records as _get_recent
+
+        _cloudant_rows = _get_recent(limit=20)
+        _existing_ids = {
+            c.get("intake", {}).get("pet_name", "") + c.get("submitted_at", "")
+            for c in st.session_state.case_queue
+        }
+        for _row in _cloudant_rows:
+            _key = _row.get("pet_name", "") + _row.get("created_at", "")
+            if _key not in _existing_ids and _row.get("triage_level"):
+                # Reshape Cloudant flat record into the queue dict shape
+                st.session_state.case_queue.append(
+                    {
+                        "pet_name": _row.get("pet_name", "Unknown"),
+                        "species": _row.get("species", "unknown"),
+                        "intake": {
+                            "reported_symptoms": _row.get("reported_symptoms", []),
+                            "species": _row.get("species", "unknown"),
+                        },
+                        "triage": {
+                            "triage_level": _row.get("triage_level", "ROUTINE"),
+                            "is_emergency": _row.get("is_emergency", False),
+                            "severity_score": _row.get("severity_score", 5),
+                            "soap_summary": _row.get("soap_brief", ""),
+                            "action_required": _row.get("action_required", ""),
+                        },
+                        "booking": {
+                            "clinic_name": _row.get("assigned_clinic", ""),
+                            "address": _row.get("clinic_address", ""),
+                            "scheduled_slot": _row.get("scheduled_slot", ""),
+                            "instructions": _row.get("instructions", ""),
+                        },
+                        "submitted_at": _row.get("created_at", "")[:19],
+                    }
+                )
+    except Exception:
+        pass  # Cloudant unavailable — session queue still works
 
     queue: list[dict[str, Any]] = st.session_state.case_queue
 
