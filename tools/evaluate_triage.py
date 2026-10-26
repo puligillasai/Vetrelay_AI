@@ -15,7 +15,7 @@ import os
 import httpx
 from ibm_watsonx_orchestrate.agent_builder.tools import tool
 
-_API_BASE = os.getenv("VETRELAY_API_URL", "https://surreal-traps-bubbly.ngrok-free.dev")
+_API_BASE = os.getenv("VETRELAY_API_URL", "http://localhost:8000")  # set VETRELAY_API_URL in env
 
 
 @tool

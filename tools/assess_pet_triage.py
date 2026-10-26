@@ -14,7 +14,7 @@ from typing import Any
 import httpx
 from ibm_watsonx_orchestrate.agent_builder.tools import tool
 
-_API_BASE = os.getenv("VETRELAY_API_URL", "http://localhost:8000")
+_API_BASE = os.getenv("VETRELAY_API_URL", "http://localhost:8000")  # set VETRELAY_API_URL in env
 
 
 def _parse_float(val: Any, default: float = 1.0) -> float:
