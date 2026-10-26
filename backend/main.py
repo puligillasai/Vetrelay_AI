@@ -49,7 +49,8 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-def custom_openapi():
+
+def custom_openapi() -> dict[str, object]:
     if app.openapi_schema:
         return app.openapi_schema
     from fastapi.openapi.utils import get_openapi
@@ -65,7 +66,7 @@ def custom_openapi():
     return app.openapi_schema
 
 
-app.openapi = custom_openapi
+app.openapi = custom_openapi  # type: ignore[method-assign]
 
 app.add_middleware(
     CORSMiddleware,
