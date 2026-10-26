@@ -1,4 +1,21 @@
-"""IBM Cloudant persistence service for VetRelay AI."""
+"""IBM Cloudant persistence service.
+
+Provides:
+  - get_cloudant_client()   — authenticated CloudantV1 client
+  - ensure_database()       — auto-create DB if it does not exist (prevents 404 on first run)
+  - save_triage_record()    — insert a triage/booking encounter document
+  - get_recent_records()    — fetch the N most recent records for front-desk queue sync
+
+Auto-initialisation:
+  On the first call to save_triage_record() the database is provisioned
+  automatically if it does not exist, so a cold deployment never crashes
+  with a 404 Not Found from Cloudant.
+
+Environment variables:
+    CLOUDANT_APIKEY    — IBM Cloud IAM API key
+    CLOUDANT_URL       — e.g. https://<instance>.cloudantnosqldb.appdomain.cloud
+    CLOUDANT_DB_NAME   — database name (default: vetrelay_intakes)
+"""
 
 from __future__ import annotations
 
@@ -6,32 +23,21 @@ import logging
 import os
 from typing import Any
 
-log = logging.getLogger("vetrelay.cloudant")
+from ibm_cloud_sdk_core import ApiException
+from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
+from ibmcloudant.cloudant_v1 import CloudantV1, Document
 
-try:
-    from ibm_cloud_sdk_core import ApiException
-    from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
-    from ibmcloudant.cloudant_v1 import CloudantV1, Document
+_log = logging.getLogger("vetrelay.cloudant")
 
-    _CLOUDANT_SDK_AVAILABLE = True
-except ImportError:
-    _CLOUDANT_SDK_AVAILABLE = False
-    ApiException = Exception
-
-# In-memory store fallback so the app works even if Cloudant is unreachable
-_MEMORY_RECORDS: list[dict[str, Any]] = []
+# Module-level flag so we only call ensure_database() once per process.
+_DB_VERIFIED: bool = False
 
 
-def is_cloudant_configured() -> bool:
-    """Check if Cloudant credentials are configured in the environment."""
-    return bool(os.getenv("CLOUDANT_APIKEY") and os.getenv("CLOUDANT_URL"))
+def get_cloudant_client() -> CloudantV1:
+    """Return an authenticated CloudantV1 client.
 
-
-def get_cloudant_client() -> Any:
-    """Initialize and return an authenticated CloudantV1 client."""
-    if not _CLOUDANT_SDK_AVAILABLE:
-        raise ImportError("ibmcloudant package is not installed.")
-
+    Raises ValueError when credentials are absent (caught by callers).
+    """
     apikey = os.getenv("CLOUDANT_APIKEY", "")
     url = os.getenv("CLOUDANT_URL", "")
 
@@ -44,59 +50,75 @@ def get_cloudant_client() -> Any:
     return client
 
 
-def ensure_database_exists(client: Any, db_name: str) -> None:
-    """Ensure the target Cloudant database exists, creating it if necessary."""
+def ensure_database(client: CloudantV1, db_name: str) -> None:
+    """Create *db_name* if it does not already exist.
+
+    Swallows the 412 Precondition Failed that Cloudant returns when the DB
+    already exists, and raises for any other error.
+    """
     try:
-        client.get_database_information(db=db_name).get_result()
+        client.put_database(db=db_name).get_result()
+        _log.info("event=cloudant_db_created db=%s", db_name)
     except ApiException as exc:
-        if getattr(exc, "code", None) == 404:
-            client.put_database(db=db_name).get_result()
+        if exc.code == 412:
+            # Database already exists — this is the normal case after first run.
+            _log.debug("event=cloudant_db_exists db=%s", db_name)
         else:
+            _log.warning("event=cloudant_db_create_failed db=%s status=%d", db_name, exc.code)
             raise
 
 
 def save_triage_record(record_data: dict[str, Any]) -> dict[str, Any]:
-    """Save an intake, triage result, and booking record to Cloudant and memory."""
-    snapshot = dict(record_data)
-    _MEMORY_RECORDS.insert(0, snapshot)
+    """Insert a triage/booking encounter into Cloudant.
 
-    if not is_cloudant_configured() or not _CLOUDANT_SDK_AVAILABLE:
-        return {"id": snapshot.get("pet_name", "local-mem"), "status": "saved_in_memory"}
+    Auto-provisions the database on the first call so a fresh deployment
+    never hits a 404.
 
+    Args:
+        record_data: Dict containing the encounter fields (see main.py).
+
+    Returns:
+        Cloudant response dict with ``id`` and ``rev``, or empty dict on error.
+    """
+    global _DB_VERIFIED  # noqa: PLW0603
+
+    db_name = os.getenv("CLOUDANT_DB_NAME", "vetrelay_intakes")
+    client = get_cloudant_client()
+
+    if not _DB_VERIFIED:
+        ensure_database(client, db_name)
+        _DB_VERIFIED = True
+
+    doc = Document._from_dict(record_data)
+    response = client.post_document(
+        db=db_name,
+        document=doc,
+    ).get_result()
+
+    return response if isinstance(response, dict) else {}
+
+
+def get_recent_records(limit: int = 20) -> list[dict[str, Any]]:
+    """Fetch the *limit* most recently saved encounter records.
+
+    Used by the Clinic Console (MVP 2) to synchronise the front-desk queue
+    across browser sessions.
+
+    Returns an empty list when Cloudant is unavailable or credentials are missing.
+    """
     db_name = os.getenv("CLOUDANT_DB_NAME", "vetrelay_intakes")
     try:
         client = get_cloudant_client()
-        ensure_database_exists(client, db_name)
-        doc = Document._from_dict(record_data)
-        response = client.post_document(db=db_name, document=doc).get_result()
-        return response if isinstance(response, dict) else {}
-    except Exception as exc:
-        log.warning("Failed to save record to Cloudant: %s", exc)
-        return {"status": "saved_in_memory", "error": str(exc)}
-
-
-def get_recent_records(limit: int = 50) -> list[dict[str, Any]]:
-    """Retrieve recent intake and triage records from Cloudant or memory."""
-    if not is_cloudant_configured() or not _CLOUDANT_SDK_AVAILABLE:
-        return _MEMORY_RECORDS[:limit]
-
-    db_name = os.getenv("CLOUDANT_DB_NAME", "vetrelay_intakes")
-    try:
-        client = get_cloudant_client()
-        result = client.post_all_docs(
+        raw = client.post_all_docs(
             db=db_name,
             include_docs=True,
             limit=limit,
-            descending=True,
+            descending=True,  # newest first
         ).get_result()
-
-        rows = result.get("rows", [])
-        docs = [row["doc"] for row in rows if row.get("doc") and not row["doc"].get("_id", "").startswith("_design/")]
-        return docs if docs else _MEMORY_RECORDS[:limit]
+        if not isinstance(raw, dict):
+            return []
+        rows: list[dict[str, Any]] = raw.get("rows", [])
+        return [r["doc"] for r in rows if "doc" in r]
     except Exception as exc:
-        log.warning("Failed to fetch records from Cloudant: %s", exc)
-        return _MEMORY_RECORDS[:limit]
-
-
-# Alias for backward compatibility
-get_recent_intakes = get_recent_records
+        _log.warning("event=cloudant_fetch_failed error=%s", str(exc))
+        return []
