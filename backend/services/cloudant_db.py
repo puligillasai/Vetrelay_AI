@@ -64,7 +64,9 @@ def ensure_database(client: CloudantV1, db_name: str) -> None:
             # Database already exists — this is the normal case after first run.
             _log.debug("event=cloudant_db_exists db=%s", db_name)
         else:
-            _log.warning("event=cloudant_db_create_failed db=%s status=%d", db_name, exc.status_code)
+            _log.warning(
+                "event=cloudant_db_create_failed db=%s status=%d", db_name, exc.status_code
+            )
             raise
 
 
