@@ -60,11 +60,11 @@ def ensure_database(client: CloudantV1, db_name: str) -> None:
         client.put_database(db=db_name).get_result()
         _log.info("event=cloudant_db_created db=%s", db_name)
     except ApiException as exc:
-        if exc.code == 412:
+        if exc.status_code == 412:
             # Database already exists — this is the normal case after first run.
             _log.debug("event=cloudant_db_exists db=%s", db_name)
         else:
-            _log.warning("event=cloudant_db_create_failed db=%s status=%d", db_name, exc.code)
+            _log.warning("event=cloudant_db_create_failed db=%s status=%d", db_name, exc.status_code)
             raise
 
 
