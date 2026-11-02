@@ -1,0 +1,27 @@
+name: "Emergency Triage - Dog Hit by Car"
+description: "Dog hit by car - tests emergency detection and escalation"
+agent: "triage_agent"
+tags: ["emergency", "trauma", "critical"]
+timeout: 60
+input:
+  transcript: |
+    Owner: "My dog was hit by a car! He's bleeding from his leg and won't put weight on it."
+    Owner: "He's a 3-year-old Labrador, about 70 pounds."
+  metadata:
+    species: "canine"
+    breed: "Labrador"
+    age: 3
+    weight_lbs: 70
+  context:
+    call_type: "emergency"
+expected:
+  urgency: "EMERGENCY"
+  escalate: true
+  recommended_actions:
+    - "Immediate veterinary care"
+    - "Control bleeding"
+    - "Immobilize limb"
+    - "Keep calm and restrict movement"
+  handoff_to: "front_desk_agent"
+  custom:
+    requires_immediate_attention: true

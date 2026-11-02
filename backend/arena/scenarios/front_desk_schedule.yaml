@@ -1,0 +1,31 @@
+name: "Front Desk - Schedule Appointment"
+description: "Schedule a new appointment via front desk agent"
+agent: "front_desk_agent"
+tags: ["scheduling", "appointment", "front_desk"]
+timeout: 60
+input:
+  transcript: |
+    Owner: "I need to schedule a checkup for my cat."
+    Owner: "Her name is Whiskers, she's 3 years old."
+    Owner: "Do you have anything next Tuesday morning?"
+  metadata:
+    patient_name: "Whiskers"
+    species: "feline"
+    age: 3
+    owner_name: "Sarah Johnson"
+    owner_phone: "555-0123"
+  context:
+    request_type: "schedule"
+    preferred_date: "2026-11-04"
+    preferred_time: "morning"
+expected:
+  urgency: null
+  escalate: false
+  recommended_actions: []
+  handoff_to: null
+  soap_note: null
+  custom:
+    appointment_scheduled: true
+    appointment_date: "2026-11-04"
+    appointment_time: "10:00"
+    confirmation_number: "APT-20261104-001"

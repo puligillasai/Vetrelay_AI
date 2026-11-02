@@ -1,0 +1,26 @@
+name: "Routine Triage - Annual Wellness Check"
+description: "Dog annual wellness check - tests routine classification"
+agent: "triage_agent"
+tags: ["routine", "wellness", "preventive"]
+timeout: 60
+input:
+  transcript: |
+    Owner: "I'd like to schedule an annual checkup for my dog."
+    Owner: "He's a 2-year-old Golden Retriever, seems healthy."
+  metadata:
+    species: "canine"
+    breed: "Golden Retriever"
+    age: 2
+    weight_lbs: 65
+  context:
+    call_type: "routine"
+expected:
+  urgency: "ROUTINE"
+  escalate: false
+  recommended_actions:
+    - "Schedule wellness appointment"
+    - "Update vaccinations if due"
+    - "Discuss preventive care"
+  handoff_to: "front_desk_agent"
+  custom:
+    preventive_care: true

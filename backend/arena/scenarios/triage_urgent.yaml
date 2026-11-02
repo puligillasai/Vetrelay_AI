@@ -1,0 +1,26 @@
+name: "Urgent Triage - Cat Vomiting Blood"
+description: "Cat vomiting blood - tests urgent detection"
+agent: "triage_agent"
+tags: ["urgent", "internal", "cat"]
+timeout: 60
+input:
+  transcript: |
+    Owner: "My cat has been vomiting all morning and now there's blood in it."
+    Owner: "She's a 5-year-old indoor cat, hasn't eaten since yesterday."
+  metadata:
+    species: "feline"
+    breed: "Domestic Shorthair"
+    age: 5
+    weight_lbs: 10
+  context:
+    call_type: "urgent"
+expected:
+  urgency: "URGENT"
+  escalate: true
+  recommended_actions:
+    - "Same-day veterinary appointment"
+    - "Withhold food, offer small amounts of water"
+    - "Monitor for lethargy or collapse"
+  handoff_to: "front_desk_agent"
+  custom:
+    requires_same_day: true
