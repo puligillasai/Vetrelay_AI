@@ -2,43 +2,42 @@
 Arena Scenario Module - Data structures for test scenarios and results
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Optional, Dict, List
-from pathlib import Path
 import json
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 
 @dataclass
 class ScenarioInput:
     """Input data for a test scenario."""
     transcript: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    context: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class ExpectedOutput:
     """Expected output for a test scenario."""
-    urgency: Optional[str] = None
-    escalate: Optional[bool] = None
-    recommended_actions: List[str] = field(default_factory=list)
-    handoff_to: Optional[str] = None
-    soap_note: Optional[Dict[str, Any]] = None
-    custom: Dict[str, Any] = field(default_factory=dict)
+    urgency: str | None = None
+    escalate: bool | None = None
+    recommended_actions: list[str] = field(default_factory=list)
+    handoff_to: str | None = None
+    soap_note: dict[str, Any] | None = None
+    custom: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class AgentOutput:
     """Actual output from an agent."""
-    urgency: Optional[str] = None
-    escalate: Optional[bool] = None
-    recommended_actions: List[str] = field(default_factory=list)
-    handoff_to: Optional[str] = None
-    soap_note: Optional[Dict[str, Any]] = None
-    tools_called: List[str] = field(default_factory=list)
+    urgency: str | None = None
+    escalate: bool | None = None
+    recommended_actions: list[str] = field(default_factory=list)
+    handoff_to: str | None = None
+    soap_note: dict[str, Any] | None = None
+    tools_called: list[str] = field(default_factory=list)
     raw_response: str = ""
-    custom: Dict[str, Any] = field(default_factory=dict)
+    custom: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -49,7 +48,7 @@ class Metrics:
     token_count: int = 0
     handoff_correctness: float = 0.0
     tool_usage_correctness: float = 0.0
-    custom: Dict[str, float] = field(default_factory=dict)
+    custom: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -60,14 +59,14 @@ class Scenario:
     agent: str
     input: ScenarioInput
     expected: ExpectedOutput
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     timeout: int = 60
 
     @classmethod
     def from_yaml(cls, path: str) -> "Scenario":
         """Load scenario from YAML file."""
         import yaml
-        with open(path, 'r') as f:
+        with open(path) as f:
             data = yaml.safe_load(f)
 
         # Parse input
@@ -140,14 +139,14 @@ class ScenarioResult:
     expected: ExpectedOutput
     metrics: Metrics
     passed: bool
-    diff: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    diff: dict[str, Any] | None = None
+    error: str | None = None
 
     def to_json(self) -> str:
         """Convert to JSON string."""
         return json.dumps(self.to_dict(), indent=2, default=str)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             'scenario': self.scenario.name,
@@ -191,7 +190,7 @@ class ScenarioResult:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ScenarioResult":
+    def from_dict(cls, data: dict[str, Any]) -> "ScenarioResult":
         """Create from dictionary."""
         scenario = Scenario(
             name=data['scenario'],
@@ -223,6 +222,6 @@ class ScenarioResult:
     @classmethod
     def load(cls, path: str) -> "ScenarioResult":
         """Load result from JSON file."""
-        with open(path, 'r') as f:
+        with open(path) as f:
             data = json.load(f)
         return cls.from_dict(data)

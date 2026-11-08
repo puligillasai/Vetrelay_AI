@@ -2,9 +2,8 @@
 Arena Evaluator Module - Evaluation metrics and comparison logic
 """
 
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +11,7 @@ logger = logging.getLogger(__name__)
 class BaseMetric:
     """Base class for custom evaluation metrics."""
 
-    def evaluate(self, expected: Any, actual: Any, context: Dict[str, Any]) -> float:
+    def evaluate(self, expected: Any, actual: Any, context: dict[str, Any]) -> float:
         """Evaluate and return a score between 0.0 and 1.0."""
         raise NotImplementedError
 
@@ -20,7 +19,7 @@ class BaseMetric:
 class AccuracyMetric(BaseMetric):
     """Standard accuracy metric comparing expected vs actual."""
 
-    def evaluate(self, expected: Any, actual: Any, context: Dict[str, Any]) -> float:
+    def evaluate(self, expected: Any, actual: Any, context: dict[str, Any]) -> float:
         if expected == actual:
             return 1.0
         if isinstance(expected, dict) and isinstance(actual, dict):
@@ -31,14 +30,14 @@ class AccuracyMetric(BaseMetric):
             return self._string_similarity(expected, actual)
         return 0.0
 
-    def _dict_similarity(self, a: Dict, b: Dict) -> float:
+    def _dict_similarity(self, a: dict, b: dict) -> float:
         all_keys = set(a.keys()) | set(b.keys())
         if not all_keys:
             return 1.0
         matches = sum(1 for k in all_keys if a.get(k) == b.get(k))
         return matches / len(all_keys)
 
-    def _list_similarity(self, a: List, b: List) -> float:
+    def _list_similarity(self, a: list, b: list) -> float:
         set_a, set_b = set(a), set(b)
         if not set_a and not set_b:
             return 1.0
@@ -61,8 +60,8 @@ class ClinicalAccuracyMetric(BaseMetric):
     # Critical fields that must match exactly
     CRITICAL_FIELDS = ['urgency', 'escalate', 'handoff_to']
 
-    def evaluate(self, expected: Dict[str, Any], actual: Dict[str, Any],
-                context: Dict[str, Any]) -> float:
+    def evaluate(self, expected: dict[str, Any], actual: dict[str, Any],
+                context: dict[str, Any]) -> float:
         score = 0.0
         weight_sum = 0.0
 
@@ -99,7 +98,7 @@ class ClinicalAccuracyMetric(BaseMetric):
 class HandoffCorrectnessMetric(BaseMetric):
     """Metric for evaluating agent handoff correctness."""
 
-    def evaluate(self, expected: Any, actual: Any, context: Dict[str, Any]) -> float:
+    def evaluate(self, expected: Any, actual: Any, context: dict[str, Any]) -> float:
         expected_handoff = expected.get('handoff_to') if isinstance(expected, dict) else None
         actual_handoff = actual.get('handoff_to') if isinstance(actual, dict) else None
 
@@ -116,7 +115,7 @@ class HandoffCorrectnessMetric(BaseMetric):
 class ToolUsageCorrectnessMetric(BaseMetric):
     """Metric for evaluating tool usage correctness."""
 
-    def evaluate(self, expected: Any, actual: Any, context: Dict[str, Any]) -> float:
+    def evaluate(self, expected: Any, actual: Any, context: dict[str, Any]) -> float:
         expected_tools = set(expected.get('tools_called', [])) if isinstance(expected, dict) else set()
         actual_tools = set(actual.get('tools_called', [])) if isinstance(actual, dict) else set()
 
@@ -133,7 +132,7 @@ class ToolUsageCorrectnessMetric(BaseMetric):
 class Evaluator:
     """Main evaluator that combines multiple metrics."""
 
-    def __init__(self, metrics: Optional[List[BaseMetric]] = None):
+    def __init__(self, metrics: list[BaseMetric] | None = None):
         self.metrics = metrics or [
             AccuracyMetric(),
             ClinicalAccuracyMetric(),
@@ -141,7 +140,7 @@ class Evaluator:
             ToolUsageCorrectnessMetric()
         ]
 
-    def evaluate(self, expected: Any, actual: Any, context: Dict[str, Any]) -> Dict[str, float]:
+    def evaluate(self, expected: Any, actual: Any, context: dict[str, Any]) -> dict[str, float]:
         """Run all metrics and return scores."""
         results = {}
         for metric in self.metrics:
@@ -153,8 +152,8 @@ class Evaluator:
                 results[metric.__class__.__name__.lower()] = 0.0
         return results
 
-    def aggregate_score(self, scores: Dict[str, float],
-                       weights: Optional[Dict[str, float]] = None) -> float:
+    def aggregate_score(self, scores: dict[str, float],
+                       weights: dict[str, float] | None = None) -> float:
         """Calculate weighted aggregate score."""
         default_weights = {
             'accuracy': 0.4,

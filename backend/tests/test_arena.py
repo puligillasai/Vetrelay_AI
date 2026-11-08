@@ -2,19 +2,26 @@
 Tests for the Arena module
 """
 
-import pytest
-import tempfile
 import os
-from pathlib import Path
+import tempfile
 
-from backend.arena.config import ArenaConfig, EvaluationConfig
-from backend.arena.scenario import (
-    Scenario, ScenarioInput, ExpectedOutput, AgentOutput,
-    Metrics, ScenarioResult
-)
+import pytest
+
+from backend.arena.config import ArenaConfig
 from backend.arena.evaluator import (
-    Evaluator, AccuracyMetric, ClinicalAccuracyMetric,
-    HandoffCorrectnessMetric, ToolUsageCorrectnessMetric
+    AccuracyMetric,
+    ClinicalAccuracyMetric,
+    Evaluator,
+    HandoffCorrectnessMetric,
+    ToolUsageCorrectnessMetric,
+)
+from backend.arena.scenario import (
+    AgentOutput,
+    ExpectedOutput,
+    Metrics,
+    Scenario,
+    ScenarioInput,
+    ScenarioResult,
 )
 
 

@@ -2,10 +2,10 @@
 Arena Configuration Module
 """
 
-import yaml
-from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
+from pathlib import Path
+
+import yaml
 
 
 @dataclass
@@ -35,7 +35,7 @@ class ArenaConfig:
     @classmethod
     def from_yaml(cls, path: str) -> "ArenaConfig":
         """Load configuration from YAML file."""
-        with open(path, 'r') as f:
+        with open(path) as f:
             data = yaml.safe_load(f)
 
         # Handle nested evaluation config

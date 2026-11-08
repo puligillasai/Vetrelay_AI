@@ -6,10 +6,10 @@ import asyncio
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .config import ArenaConfig
-from .scenario import Scenario, ScenarioResult, ScenarioInput, ExpectedOutput, AgentOutput, Metrics
+from .scenario import AgentOutput, ExpectedOutput, Metrics, Scenario, ScenarioResult
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class ScenarioRunner:
     """Runs test scenarios against Vetrelay agents."""
 
-    def __init__(self, config: Optional[ArenaConfig] = None):
+    def __init__(self, config: ArenaConfig | None = None):
         self.config = config or ArenaConfig.default()
         self._agent_cache = {}
 
@@ -36,9 +36,9 @@ class ScenarioRunner:
                 self._agent_cache[agent_name] = route_booking
             elif agent_name == "vetrelay_coordinator":
                 # For coordinator, we'll use a wrapper that chains the agents
-                from backend.agents.triage_agent import evaluate_triage
-                from backend.agents.soap_agent import build_soap_summary
                 from backend.agents.booking_agent import route_booking
+                from backend.agents.soap_agent import build_soap_summary
+                from backend.agents.triage_agent import evaluate_triage
 
                 async def coordinator_process(input_data):
                     """Process through full workflow: triage -> soap -> booking."""
@@ -100,7 +100,7 @@ class ScenarioRunner:
                 raise ValueError(f"Unknown agent: {agent_name}")
         return self._agent_cache[agent_name]
 
-    async def run_async(self, scenario: Scenario, model: Optional[str] = None) -> ScenarioResult:
+    async def run_async(self, scenario: Scenario, model: str | None = None) -> ScenarioResult:
         """Run a scenario asynchronously."""
         model = model or self.config.default_model
         start_time = time.time()
@@ -171,7 +171,7 @@ class ScenarioRunner:
                 error=str(e)
             )
 
-    def run(self, scenario: Scenario, model: Optional[str] = None) -> ScenarioResult:
+    def run(self, scenario: Scenario, model: str | None = None) -> ScenarioResult:
         """Run a scenario synchronously."""
         return asyncio.run(self.run_async(scenario, model))
 
@@ -232,7 +232,7 @@ class ScenarioRunner:
 
         return metrics
 
-    def _compare_soap(self, expected: Dict, actual: Dict) -> bool:
+    def _compare_soap(self, expected: dict, actual: dict) -> bool:
         """Compare SOAP notes for structural similarity."""
         expected_keys = set(expected.keys())
         actual_keys = set(actual.keys())
@@ -262,7 +262,7 @@ class ScenarioRunner:
         overlap = len(words_a & words_b) / len(words_a | words_b)
         return overlap >= threshold
 
-    def _generate_diff(self, expected: ExpectedOutput, actual: AgentOutput) -> Dict[str, Any]:
+    def _generate_diff(self, expected: ExpectedOutput, actual: AgentOutput) -> dict[str, Any]:
         """Generate a diff between expected and actual output."""
         diff = {}
 

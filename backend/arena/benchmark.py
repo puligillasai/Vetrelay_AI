@@ -4,14 +4,14 @@ Arena Benchmark Module - Runs full benchmark suites
 
 import asyncio
 import json
-from pathlib import Path
-from typing import List, Optional, Dict, Any
-from datetime import datetime
 import logging
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 from .config import ArenaConfig
-from .scenario import Scenario, ScenarioResult
 from .runner import ScenarioRunner
+from .scenario import Scenario, ScenarioResult
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 class Benchmark:
     """Runs full benchmark suites against all scenarios."""
 
-    def __init__(self, config: Optional[ArenaConfig] = None):
+    def __init__(self, config: ArenaConfig | None = None):
         self.config = config or ArenaConfig.default()
         self.runner = ScenarioRunner(config)
-        self.results: List[ScenarioResult] = []
+        self.results: list[ScenarioResult] = []
 
-    def discover_scenarios(self, scenarios_dir: Optional[str] = None) -> List[Scenario]:
+    def discover_scenarios(self, scenarios_dir: str | None = None) -> list[Scenario]:
         """Discover all scenario files in the scenarios directory."""
         dir_path = Path(scenarios_dir or self.config.scenarios_dir)
         scenarios = []
@@ -47,9 +47,9 @@ class Benchmark:
 
         return scenarios
 
-    async def run_async(self, scenarios: Optional[List[Scenario]] = None,
-                       model: Optional[str] = None,
-                       parallel: Optional[int] = None) -> List[ScenarioResult]:
+    async def run_async(self, scenarios: list[Scenario] | None = None,
+                       model: str | None = None,
+                       parallel: int | None = None) -> list[ScenarioResult]:
         """Run benchmark asynchronously."""
         if scenarios is None:
             scenarios = self.discover_scenarios()
@@ -91,13 +91,13 @@ class Benchmark:
         self.results = processed_results
         return self.results
 
-    def run(self, scenarios: Optional[List[Scenario]] = None,
-           model: Optional[str] = None,
-           parallel: Optional[int] = None) -> List[ScenarioResult]:
+    def run(self, scenarios: list[Scenario] | None = None,
+           model: str | None = None,
+           parallel: int | None = None) -> list[ScenarioResult]:
         """Run benchmark synchronously."""
         return asyncio.run(self.run_async(scenarios, model, parallel))
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get benchmark summary statistics."""
         if not self.results:
             return {}
@@ -139,12 +139,12 @@ class Benchmark:
 
 
 def compare_results(baseline_path: str, current_path: str,
-                   threshold: float = 0.85) -> Dict[str, Any]:
+                   threshold: float = 0.85) -> dict[str, Any]:
     """Compare two benchmark result files."""
-    with open(baseline_path, 'r') as f:
+    with open(baseline_path) as f:
         baseline = json.load(f)
 
-    with open(current_path, 'r') as f:
+    with open(current_path) as f:
         current = json.load(f)
 
     baseline_results = {r['scenario']: r for r in baseline.get('results', [])}

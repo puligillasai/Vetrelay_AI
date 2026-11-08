@@ -4,7 +4,6 @@ Arena CLI - Run scenarios and benchmarks from command line
 """
 
 import argparse
-import asyncio
 import sys
 from pathlib import Path
 
@@ -12,10 +11,10 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from backend.arena.config import ArenaConfig
-from backend.arena.scenario import Scenario
-from backend.arena.runner import ScenarioRunner
 from backend.arena.benchmark import Benchmark, compare_results, update_baseline
+from backend.arena.config import ArenaConfig
+from backend.arena.runner import ScenarioRunner
+from backend.arena.scenario import Scenario
 
 
 def run_scenario(args):
@@ -70,7 +69,7 @@ def run_scenario(args):
         baseline_path = Path(config.baseline_dir) / f"{scenario.name}.json"
         if baseline_path.exists():
             baseline_result = ScenarioResult.load(str(baseline_path))
-            print(f"\nBaseline Comparison:")
+            print("\nBaseline Comparison:")
             print(f"  Baseline Accuracy: {baseline_result.metrics.accuracy:.2%}")
             print(f"  Current Accuracy:  {result.metrics.accuracy:.2%}")
             diff = result.metrics.accuracy - baseline_result.metrics.accuracy
