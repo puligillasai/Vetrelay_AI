@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: vetrelay-ai-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHONPATH
+        value: .
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: CLOUDANT_APIKEY
+        sync: false
+      - key: CLOUDANT_URL
+        sync: false
+      - key: CLOUDANT_DB_NAME
+        value: vetrelay_intakes
+      - key: WATSON_TTS_APIKEY
+        sync: false
+      - key: WATSON_TTS_URL
+        sync: false
+      - key: WATSON_STT_APIKEY
+        sync: false
+      - key: WATSON_STT_URL
+        sync: false
+      - key: WATSONX_API_KEY
+        sync: false
+      - key: WATSONX_URL
+        sync: false
+      - key: WATSONX_PROJECT_ID
+        sync: false
