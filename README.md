@@ -35,8 +35,6 @@ tools/
   evaluate_triage.py                ← Standalone triage evaluation tool
   find_clinic.py                    ← Clinic routing tool
   handoff_to_front_desk.py          ← Front-desk queue persistence tool
-connections/
-  vetrelay_openapi.json             ← Full OpenAPI 3.0.3 spec (for UI import)
 backend/
   main.py                           ← FastAPI app; /api/* + legacy routers
   agents/                           ← Triage, booking, SOAP agent logic
@@ -53,6 +51,13 @@ mock_data/
   vet_clinics.json                  ← Synthetic clinic fixtures (6 records)
   clinic_capacity.json              ← Legacy capacity fixtures
 tests/                              ← 45 tests across 6 test files
+test_cloudant.py                    ← Standalone IBM Cloudant connection smoke test
+workspace_config.yaml               ← watsonx Orchestrate workspace configuration
+Dockerfile                          ← Multi-stage container build for backend/frontend
+fly.toml                            ← Fly.io deployment config (with .github/workflows CI)
+render.yaml                         ← Render.com deployment blueprint
+deploy_code_engine.sh               ← IBM Cloud Code Engine deployment script
+manifest.yml / Procfile             ← Cloud Foundry / PaaS deployment manifests
 ```
 
 ---
@@ -149,6 +154,15 @@ curl http://localhost:8000/docs
 > **Production note**: For a real deployment, publish the backend to a public
 > URL and set `export VETRELAY_API_URL=https://your-deployed-backend.com`
 > before running the import commands below.
+
+Cloud Deployment Options
+This repository includes ready-to-use deployment configurations for hosting the FastAPI backend publicly so watsonx Orchestrate cloud tools can reach it:
+
+IBM Cloud Code Engine: Run ./deploy_code_engine.sh to build and deploy the container via Dockerfile.
+
+Fly.io: Configured via fly.toml and automated via .github/workflows on push.
+
+Render.com: Configured via render.yaml (plus manifest.yml and Procfile for PaaS targets).
 
 ---
 
