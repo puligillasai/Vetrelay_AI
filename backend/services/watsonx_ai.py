@@ -14,20 +14,29 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import TYPE_CHECKING
 
 from backend.telemetry import get_logger
+
+if TYPE_CHECKING:
+    from ibm_watsonx_ai import Credentials  # type: ignore[import]
+    from ibm_watsonx_ai.foundation_models import ModelInference  # type: ignore[import]
+    from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as _P  # type: ignore[import]
 
 log: logging.Logger = get_logger("vetrelay.watsonx_ai")
 
 # Lazily imported so the rest of the app starts even if ibm-watsonx-ai is absent.
 try:
-    from ibm_watsonx_ai import Credentials
-    from ibm_watsonx_ai.foundation_models import ModelInference
-    from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as _P
+    from ibm_watsonx_ai import Credentials  # type: ignore[import]
+    from ibm_watsonx_ai.foundation_models import ModelInference  # type: ignore[import]
+    from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as _P  # type: ignore[import]
 
     _SDK_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover
     _SDK_AVAILABLE = False
+    Credentials = None  # type: ignore[assignment]
+    ModelInference = None  # type: ignore[assignment]
+    _P = None  # type: ignore[assignment]
     log.warning("event=watsonx_ai_sdk_missing install ibm-watsonx-ai to enable Granite inference")
 
 # ---------------------------------------------------------------------------
@@ -78,16 +87,16 @@ def generate(prompt: str, max_new_tokens: int = 512) -> str | None:
         return None
 
     try:
-        credentials = Credentials(api_key=api_key, url=url)
+        credentials = Credentials(api_key=api_key, url=url)  # type: ignore[union-attr]
         # Build params using SDK MetaNames so keys are always correct,
         # then override max_new_tokens with the caller-supplied value.
         params: dict[str, object] = {
-            _P.MAX_NEW_TOKENS: max_new_tokens,
-            _P.MIN_NEW_TOKENS: _DEFAULT_PARAMS["min_new_tokens"],
-            _P.DECODING_METHOD: _DEFAULT_PARAMS["decoding_method"],
-            _P.REPETITION_PENALTY: _DEFAULT_PARAMS["repetition_penalty"],
+            _P.MAX_NEW_TOKENS: max_new_tokens,  # type: ignore[union-attr]
+            _P.MIN_NEW_TOKENS: _DEFAULT_PARAMS["min_new_tokens"],  # type: ignore[union-attr]
+            _P.DECODING_METHOD: _DEFAULT_PARAMS["decoding_method"],  # type: ignore[union-attr]
+            _P.REPETITION_PENALTY: _DEFAULT_PARAMS["repetition_penalty"],  # type: ignore[union-attr]
         }
-        model = ModelInference(
+        model = ModelInference(  # type: ignore[union-attr]
             model_id=_MODEL_ID,
             credentials=credentials,
             project_id=project_id,
